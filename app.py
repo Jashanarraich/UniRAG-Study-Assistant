@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 import streamlit as st
 
-from src.config import DATA_DIR, VECTOR_DB_DIR, get_google_api_key
+from src.config import DATA_DIR, VECTOR_DB_DIR, get_google_api_key, has_default_api_key
 from src.document_loader import load_and_split_document
 from src.vector_store import create_vector_store, load_vector_store
 from src.rag_pipeline import UniRAGPipeline
@@ -59,21 +59,45 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # API Key Status & Input
+    # API Key Status & Custom Override Option
+    user_custom_key = st.session_state.get("user_api_key", "").strip()
+    has_default = has_default_api_key()
     active_key = get_google_api_key()
-    if active_key:
-        st.success("✅ Google Gemini API Key Active")
+
+    if user_custom_key:
+        st.success("🔑 Using Your Custom API Key")
+        if st.button("🔄 Revert to Default Key", use_container_width=True):
+            st.session_state["user_api_key"] = ""
+            st.rerun()
+    elif has_default:
+        st.success("✅ Default Gemini API Key Active")
+    elif active_key:
+        st.success("✅ Gemini API Key Active")
     else:
-        st.warning("⚠️ Gemini API Key not detected")
-        key_input = st.text_input(
-            "🔑 Enter Gemini API Key:",
+        st.warning("⚠️ No Gemini API Key active")
+
+    # Expandable drawer allowing users to use their own personal API key
+    with st.expander("⚙️ Use Custom API Key (Optional)", expanded=not bool(active_key)):
+        st.caption("Want to use your own personal Gemini API key? Enter it here:")
+        custom_input = st.text_input(
+            "Custom Gemini Key:",
             type="password",
             placeholder="AIzaSy...",
-            help="Paste your free key from https://aistudio.google.com/ to activate.",
+            help="Get your personal free key from https://aistudio.google.com/",
+            key="custom_key_field",
         )
-        if key_input:
-            st.session_state["user_api_key"] = key_input.strip()
-            st.rerun()
+        col_apply, col_clear = st.columns(2)
+        with col_apply:
+            if st.button("Apply", use_container_width=True):
+                if custom_input.strip():
+                    st.session_state["user_api_key"] = custom_input.strip()
+                    st.rerun()
+                else:
+                    st.warning("Please type or paste a key first.")
+        with col_clear:
+            if st.button("Clear", use_container_width=True):
+                st.session_state["user_api_key"] = ""
+                st.rerun()
 
     st.markdown("### 1. Upload Study Materials")
     uploaded_files = st.file_uploader(
