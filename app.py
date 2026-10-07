@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 import streamlit as st
 
-from src.config import DATA_DIR, VECTOR_DB_DIR, get_google_api_key, has_default_api_key
+from src.config import DATA_DIR, VECTOR_DB_DIR, GOOGLE_API_KEY
 from src.document_loader import load_and_split_document
 from src.vector_store import create_vector_store, load_vector_store
 from src.rag_pipeline import UniRAGPipeline
@@ -59,45 +59,11 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # API Key Status & Custom Override Option
-    user_custom_key = st.session_state.get("user_api_key", "").strip()
-    has_default = has_default_api_key()
-    active_key = get_google_api_key()
-
-    if user_custom_key:
-        st.success("🔑 Using Your Custom API Key")
-        if st.button("🔄 Revert to Default Key", use_container_width=True):
-            st.session_state["user_api_key"] = ""
-            st.rerun()
-    elif has_default:
-        st.success("✅ Default Gemini API Key Active")
-    elif active_key:
-        st.success("✅ Gemini API Key Active")
+    # API Key Status indicator
+    if GOOGLE_API_KEY:
+        st.success("✅ Google Gemini API Key Active")
     else:
-        st.warning("⚠️ No Gemini API Key active")
-
-    # Expandable drawer allowing users to use their own personal API key
-    with st.expander("⚙️ Use Custom API Key (Optional)", expanded=not bool(active_key)):
-        st.caption("Want to use your own personal Gemini API key? Enter it here:")
-        custom_input = st.text_input(
-            "Custom Gemini Key:",
-            type="password",
-            placeholder="AIzaSy...",
-            help="Get your personal free key from https://aistudio.google.com/",
-            key="custom_key_field",
-        )
-        col_apply, col_clear = st.columns(2)
-        with col_apply:
-            if st.button("Apply", use_container_width=True):
-                if custom_input.strip():
-                    st.session_state["user_api_key"] = custom_input.strip()
-                    st.rerun()
-                else:
-                    st.warning("Please type or paste a key first.")
-        with col_clear:
-            if st.button("Clear", use_container_width=True):
-                st.session_state["user_api_key"] = ""
-                st.rerun()
+        st.error("❌ GOOGLE_API_KEY is missing. Please add it to Streamlit Secrets.")
 
     st.markdown("### 1. Upload Study Materials")
     uploaded_files = st.file_uploader(
@@ -110,13 +76,12 @@ with st.sidebar:
     process_button = st.button("⚡ Process & Index Documents", type="primary", use_container_width=True)
 
     if process_button:
-        active_key = get_google_api_key()
-        if not active_key:
-            st.error("Please enter your Gemini API Key in the box above or Streamlit Secrets.")
+        if not GOOGLE_API_KEY:
+            st.error("Please add your GOOGLE_API_KEY in Streamlit Secrets or .env.")
         elif not uploaded_files:
             st.warning("Please upload at least one PDF or photo.")
         else:
-            with st.spinner("Processing documents into chunks and embeddings (AI OCR enabled)..."):
+            with st.spinner("Processing documents into chunks and embeddings..."):
                 DATA_DIR.mkdir(parents=True, exist_ok=True)
                 all_chunks = []
                 indexed_names = []
@@ -127,7 +92,7 @@ with st.sidebar:
                     with open(file_path, "wb") as f:
                         f.write(uploaded_file.getbuffer())
 
-                    # Load and split into chunks (runs OCR for images/scans automatically)
+                    # Load and split into chunks
                     chunks = load_and_split_document(str(file_path))
                     all_chunks.extend(chunks)
                     indexed_names.append(uploaded_file.name)
@@ -141,14 +106,7 @@ with st.sidebar:
                         st.session_state.total_chunks = len(all_chunks)
                         st.success(f"Successfully indexed {len(all_chunks)} chunks from {len(indexed_names)} file(s)!")
                     except Exception as err:
-                        err_msg = str(err)
-                        st.error(f"❌ Failed to process documents: {err_msg}")
-                        if any(code in err_msg for code in ["403", "API_KEY_INVALID", "PERMISSION_DENIED", "UNAUTHENTICATED"]):
-                            st.warning("👉 The Gemini API key seems invalid or unauthorized. Try applying a fresh key in the '⚙️ Use Custom API Key' box above.")
-                        elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
-                            st.warning("👉 Google Gemini free tier rate limit reached. Please wait 1 minute before trying again.")
-                        elif "404" in err_msg:
-                            st.warning("👉 Gemini model not found for this API version. Please verify model configuration.")
+                        st.error(f"❌ Failed to process documents: {err}")
                 else:
                     st.error("Could not extract any readable text from the uploaded file(s).")
 

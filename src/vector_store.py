@@ -2,76 +2,41 @@ from typing import List, Optional
 from pathlib import Path
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from google import genai
-from langchain_core.embeddings import Embeddings
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from src.config import (
-    get_google_api_key,
+    GOOGLE_API_KEY,
     EMBEDDING_MODEL_NAME,
     VECTOR_DB_DIR,
 )
 
 
-class DirectGeminiEmbeddings(Embeddings):
-    """
-    Direct Google Gemini Embeddings using google.genai.
-    Bypasses the LangChain BatchEmbedContents bug that causes:
-    'ACCESS_TOKEN_TYPE_UNSUPPORTED: Expected OAuth 2 access token'
-    by calling EmbedContent with API key directly.
-    """
-
-    def __init__(self, api_key: str, model: str = EMBEDDING_MODEL_NAME):
-        self.api_key = api_key
-        self.model = model
-        self.client = genai.Client(api_key=api_key)
-
-    def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        embeddings: List[List[float]] = []
-        for text in texts:
-            clean_text = text.strip() if text else "empty"
-            if not clean_text:
-                clean_text = "empty"
-            response = self.client.models.embed_content(
-                model=self.model,
-                contents=clean_text,
-            )
-            embeddings.append(response.embeddings[0].values)
-        return embeddings
-
-    def embed_query(self, text: str) -> List[float]:
-        clean_text = text.strip() if text else "empty"
-        response = self.client.models.embed_content(
-            model=self.model,
-            contents=clean_text,
-        )
-        return response.embeddings[0].values
-
-
-def get_embeddings_model() -> DirectGeminiEmbeddings:
+def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
     """
     Initializes and returns the Google Gemini embeddings model.
     Embeddings transform text into high-dimensional numerical vectors that capture meaning.
     """
-    api_key = get_google_api_key()
-    if not api_key:
+    if not GOOGLE_API_KEY:
         raise ValueError(
-            "GOOGLE_API_KEY not found. Please add your Gemini API key in the sidebar, .env, or Streamlit secrets."
+            "GOOGLE_API_KEY not found in environment or Streamlit Secrets. "
+            "Please configure your Gemini API key."
         )
 
-    return DirectGeminiEmbeddings(api_key=api_key, model=EMBEDDING_MODEL_NAME)
+    return GoogleGenerativeAIEmbeddings(
+        model=EMBEDDING_MODEL_NAME,
+        google_api_key=GOOGLE_API_KEY,
+    )
 
 
 def create_vector_store(
     chunks: List[Document],
     persist_directory: Optional[Path] = None,
     collection_name: str = "unirag_docs",
-    batch_size: int = 15,
 ) -> Chroma:
     """
-    Takes document chunks, cleans them, computes embeddings in safe batches of 15,
-    and stores them in a local ChromaDB database.
+    Takes document chunks, computes their embeddings, and stores them in a local ChromaDB database.
     """
-    # 1. Filter out empty or minimal whitespace chunks
+    # Filter out empty or whitespace-only chunks
     valid_chunks = [c for c in chunks if c.page_content and len(c.page_content.strip()) > 3]
     if not valid_chunks:
         raise ValueError("No readable text found in the uploaded documents to index.")
@@ -79,18 +44,12 @@ def create_vector_store(
     persist_dir = str(persist_directory or VECTOR_DB_DIR)
     embeddings = get_embeddings_model()
 
-    # 2. Initialize Chroma collection
-    vector_store = Chroma(
+    vector_store = Chroma.from_documents(
+        documents=valid_chunks,
+        embedding=embeddings,
         persist_directory=persist_dir,
-        embedding_function=embeddings,
         collection_name=collection_name,
     )
-
-    # 3. Add documents in safe batches to avoid Google API request payload limits
-    for i in range(0, len(valid_chunks), batch_size):
-        batch = valid_chunks[i : i + batch_size]
-        vector_store.add_documents(batch)
-
     return vector_store
 
 
