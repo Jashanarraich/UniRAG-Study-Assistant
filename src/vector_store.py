@@ -2,7 +2,8 @@ from typing import List, Optional
 from pathlib import Path
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from google import genai
+from langchain_core.embeddings import Embeddings
 
 from src.config import (
     get_google_api_key,
@@ -11,7 +12,42 @@ from src.config import (
 )
 
 
-def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
+class DirectGeminiEmbeddings(Embeddings):
+    """
+    Direct Google Gemini Embeddings using google.genai.
+    Bypasses the LangChain BatchEmbedContents bug that causes:
+    'ACCESS_TOKEN_TYPE_UNSUPPORTED: Expected OAuth 2 access token'
+    by calling EmbedContent with API key directly.
+    """
+
+    def __init__(self, api_key: str, model: str = EMBEDDING_MODEL_NAME):
+        self.api_key = api_key
+        self.model = model
+        self.client = genai.Client(api_key=api_key)
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        embeddings: List[List[float]] = []
+        for text in texts:
+            clean_text = text.strip() if text else "empty"
+            if not clean_text:
+                clean_text = "empty"
+            response = self.client.models.embed_content(
+                model=self.model,
+                contents=clean_text,
+            )
+            embeddings.append(response.embeddings[0].values)
+        return embeddings
+
+    def embed_query(self, text: str) -> List[float]:
+        clean_text = text.strip() if text else "empty"
+        response = self.client.models.embed_content(
+            model=self.model,
+            contents=clean_text,
+        )
+        return response.embeddings[0].values
+
+
+def get_embeddings_model() -> DirectGeminiEmbeddings:
     """
     Initializes and returns the Google Gemini embeddings model.
     Embeddings transform text into high-dimensional numerical vectors that capture meaning.
@@ -22,10 +58,7 @@ def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
             "GOOGLE_API_KEY not found. Please add your Gemini API key in the sidebar, .env, or Streamlit secrets."
         )
 
-    return GoogleGenerativeAIEmbeddings(
-        model=EMBEDDING_MODEL_NAME,
-        google_api_key=api_key,
-    )
+    return DirectGeminiEmbeddings(api_key=api_key, model=EMBEDDING_MODEL_NAME)
 
 
 def create_vector_store(
