@@ -8,14 +8,15 @@ from google import genai
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.documents import Document
 
-from src.config import CHUNK_SIZE, CHUNK_OVERLAP, GOOGLE_API_KEY, LLM_MODEL_NAME
+from src.config import CHUNK_SIZE, CHUNK_OVERLAP, get_google_api_key, LLM_MODEL_NAME
 
 
 def get_genai_client() -> genai.Client:
     """Initializes Google GenAI Client for vision and OCR tasks."""
-    if not GOOGLE_API_KEY:
-        raise ValueError("GOOGLE_API_KEY is not set. Please add it to your .env file.")
-    return genai.Client(api_key=GOOGLE_API_KEY)
+    api_key = get_google_api_key()
+    if not api_key:
+        raise ValueError("GOOGLE_API_KEY is not set. Please provide it in the sidebar, .env, or Streamlit secrets.")
+    return genai.Client(api_key=api_key)
 
 
 def extract_text_from_image(image_input: Union[Image.Image, bytes, Path]) -> str:

@@ -5,7 +5,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 
-from src.config import GOOGLE_API_KEY, LLM_MODEL_NAME
+from src.config import get_google_api_key, LLM_MODEL_NAME
 from src.vector_store import get_retriever
 
 
@@ -14,12 +14,13 @@ def get_llm(model_name: str = LLM_MODEL_NAME, temperature: float = 0.2) -> ChatG
     Initializes the Gemini LLM for question answering.
     Temperature is kept low (0.2) to ensure factual, grounded responses based on student notes.
     """
-    if not GOOGLE_API_KEY:
+    api_key = get_google_api_key()
+    if not api_key:
         raise ValueError("GOOGLE_API_KEY is not configured.")
 
     return ChatGoogleGenerativeAI(
         model=model_name,
-        google_api_key=GOOGLE_API_KEY,
+        google_api_key=api_key,
         temperature=temperature,
     )
 

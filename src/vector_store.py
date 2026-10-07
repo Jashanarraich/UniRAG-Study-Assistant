@@ -5,7 +5,7 @@ from langchain_chroma import Chroma
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
 
 from src.config import (
-    GOOGLE_API_KEY,
+    get_google_api_key,
     EMBEDDING_MODEL_NAME,
     VECTOR_DB_DIR,
 )
@@ -16,15 +16,15 @@ def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
     Initializes and returns the Google Gemini embeddings model.
     Embeddings transform text into high-dimensional numerical vectors that capture meaning.
     """
-    if not GOOGLE_API_KEY:
+    api_key = get_google_api_key()
+    if not api_key:
         raise ValueError(
-            "GOOGLE_API_KEY not found in environment or .env file. "
-            "Please add your Gemini API key to .env."
+            "GOOGLE_API_KEY not found. Please add your Gemini API key in the sidebar, .env, or Streamlit secrets."
         )
 
     return GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL_NAME,
-        google_api_key=GOOGLE_API_KEY,
+        google_api_key=api_key,
     )
 
 

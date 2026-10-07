@@ -3,7 +3,7 @@ import shutil
 from pathlib import Path
 import streamlit as st
 
-from src.config import DATA_DIR, VECTOR_DB_DIR, GOOGLE_API_KEY
+from src.config import DATA_DIR, VECTOR_DB_DIR, get_google_api_key
 from src.document_loader import load_and_split_document
 from src.vector_store import create_vector_store, load_vector_store
 from src.rag_pipeline import UniRAGPipeline
@@ -59,11 +59,21 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # API Key Status indicator
-    if GOOGLE_API_KEY:
+    # API Key Status & Input
+    active_key = get_google_api_key()
+    if active_key:
         st.success("✅ Google Gemini API Key Active")
     else:
-        st.error("❌ GOOGLE_API_KEY is missing in your .env file.")
+        st.warning("⚠️ Gemini API Key not detected")
+        key_input = st.text_input(
+            "🔑 Enter Gemini API Key:",
+            type="password",
+            placeholder="AIzaSy...",
+            help="Paste your free key from https://aistudio.google.com/ to activate.",
+        )
+        if key_input:
+            st.session_state["user_api_key"] = key_input.strip()
+            st.rerun()
 
     st.markdown("### 1. Upload Study Materials")
     uploaded_files = st.file_uploader(
@@ -76,8 +86,9 @@ with st.sidebar:
     process_button = st.button("⚡ Process & Index Documents", type="primary", use_container_width=True)
 
     if process_button:
-        if not GOOGLE_API_KEY:
-            st.error("Please add your GOOGLE_API_KEY in the .env file first.")
+        active_key = get_google_api_key()
+        if not active_key:
+            st.error("Please enter your Gemini API Key in the box above or Streamlit Secrets.")
         elif not uploaded_files:
             st.warning("Please upload at least one PDF or photo.")
         else:
