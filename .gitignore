@@ -1,0 +1,17 @@
+# Python virtual environment
+venv/
+.venv/
+__pycache__/
+*.pyc
+.idea/
+.vscode/
+
+# Environment and sensitive keys
+.env
+
+# Chroma vector database storage directory
+vector_db/
+
+# Uploaded documents cache
+data/docs/*
+!data/docs/.gitkeep

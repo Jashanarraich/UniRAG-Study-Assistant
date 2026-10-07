@@ -1,0 +1,23 @@
+# Core LangChain Framework
+langchain>=0.3.0
+langchain-core>=0.3.0
+langchain-community>=0.3.0
+langchain-text-splitters>=0.3.0
+
+# LLM and Embeddings Provider (Google Gemini)
+langchain-google-genai>=2.0.0
+google-genai>=2.0.0
+
+# Vector Database
+langchain-chroma>=0.1.4
+chromadb>=0.5.0
+
+# Document & Image Processing (PDF and Vision OCR)
+pypdf>=5.0.0
+pillow>=10.0.0
+
+# Frontend Web Interface
+streamlit>=1.40.0
+
+# Environment Variables Management
+python-dotenv>=1.0.0
