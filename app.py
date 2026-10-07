@@ -133,12 +133,22 @@ with st.sidebar:
                     indexed_names.append(uploaded_file.name)
 
                 if all_chunks:
-                    # Create Chroma vector database and initialize RAG pipeline
-                    vector_store = create_vector_store(all_chunks)
-                    st.session_state.rag_pipeline = UniRAGPipeline(vector_store)
-                    st.session_state.indexed_files = indexed_names
-                    st.session_state.total_chunks = len(all_chunks)
-                    st.success(f"Successfully indexed {len(all_chunks)} chunks from {len(indexed_names)} file(s)!")
+                    try:
+                        # Create Chroma vector database and initialize RAG pipeline
+                        vector_store = create_vector_store(all_chunks)
+                        st.session_state.rag_pipeline = UniRAGPipeline(vector_store)
+                        st.session_state.indexed_files = indexed_names
+                        st.session_state.total_chunks = len(all_chunks)
+                        st.success(f"Successfully indexed {len(all_chunks)} chunks from {len(indexed_names)} file(s)!")
+                    except Exception as err:
+                        err_msg = str(err)
+                        st.error(f"❌ Failed to process documents: {err_msg}")
+                        if any(code in err_msg for code in ["403", "API_KEY_INVALID", "PERMISSION_DENIED", "UNAUTHENTICATED"]):
+                            st.warning("👉 The Gemini API key seems invalid or unauthorized. Try applying a fresh key in the '⚙️ Use Custom API Key' box above.")
+                        elif "429" in err_msg or "RESOURCE_EXHAUSTED" in err_msg:
+                            st.warning("👉 Google Gemini free tier rate limit reached. Please wait 1 minute before trying again.")
+                        elif "404" in err_msg:
+                            st.warning("👉 Gemini model not found for this API version. Please verify model configuration.")
                 else:
                     st.error("Could not extract any readable text from the uploaded file(s).")
 

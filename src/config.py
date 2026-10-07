@@ -9,6 +9,17 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 load_dotenv(dotenv_path=BASE_DIR / ".env")
 
 
+def clean_api_key(val) -> str:
+    """Strips accidental quotes, spaces, and formatting characters from API key string."""
+    if not val:
+        return ""
+    s = str(val).strip()
+    for quote in ['"', "'", "`"]:
+        if s.startswith(quote) and s.endswith(quote):
+            s = s[1:-1].strip()
+    return s
+
+
 def get_google_api_key() -> str:
     """
     Dynamically retrieves the Google Gemini API key:
@@ -20,7 +31,9 @@ def get_google_api_key() -> str:
     try:
         import streamlit as st
         if "user_api_key" in st.session_state and st.session_state["user_api_key"]:
-            return str(st.session_state["user_api_key"]).strip()
+            cleaned = clean_api_key(st.session_state["user_api_key"])
+            if cleaned:
+                return cleaned
     except Exception:
         pass
 
@@ -28,14 +41,14 @@ def get_google_api_key() -> str:
     try:
         import streamlit as st
         if hasattr(st, "secrets") and "GOOGLE_API_KEY" in st.secrets:
-            sec_val = str(st.secrets["GOOGLE_API_KEY"]).strip()
-            if sec_val:
-                return sec_val
+            cleaned = clean_api_key(st.secrets["GOOGLE_API_KEY"])
+            if cleaned:
+                return cleaned
     except Exception:
         pass
 
     # 3. Environment variable / local .env
-    key = os.getenv("GOOGLE_API_KEY", "").strip()
+    key = clean_api_key(os.getenv("GOOGLE_API_KEY", ""))
     if key:
         return key
 

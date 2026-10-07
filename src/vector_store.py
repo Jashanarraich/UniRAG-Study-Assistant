@@ -32,19 +32,32 @@ def create_vector_store(
     chunks: List[Document],
     persist_directory: Optional[Path] = None,
     collection_name: str = "unirag_docs",
+    batch_size: int = 15,
 ) -> Chroma:
     """
-    Takes document chunks, computes their embeddings, and stores them in a local ChromaDB database.
+    Takes document chunks, cleans them, computes embeddings in safe batches of 15,
+    and stores them in a local ChromaDB database.
     """
+    # 1. Filter out empty or minimal whitespace chunks
+    valid_chunks = [c for c in chunks if c.page_content and len(c.page_content.strip()) > 3]
+    if not valid_chunks:
+        raise ValueError("No readable text found in the uploaded documents to index.")
+
     persist_dir = str(persist_directory or VECTOR_DB_DIR)
     embeddings = get_embeddings_model()
 
-    vector_store = Chroma.from_documents(
-        documents=chunks,
-        embedding=embeddings,
+    # 2. Initialize Chroma collection
+    vector_store = Chroma(
         persist_directory=persist_dir,
+        embedding_function=embeddings,
         collection_name=collection_name,
     )
+
+    # 3. Add documents in safe batches to avoid Google API request payload limits
+    for i in range(0, len(valid_chunks), batch_size):
+        batch = valid_chunks[i : i + batch_size]
+        vector_store.add_documents(batch)
+
     return vector_store
 
 
