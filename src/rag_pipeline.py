@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from pathlib import Path
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -60,13 +60,38 @@ def extract_text_from_llm_response(content: Any) -> str:
     return str(content)
 
 
+def solve_direct_question(question: str) -> str:
+    """
+    Answers and solves student questions directly even when no course documents
+    are uploaded, acting as a comprehensive academic tutor.
+    """
+    llm = get_llm()
+    prompt = ChatPromptTemplate.from_messages([
+        (
+            "system",
+            "You are UniRAG, an intelligent AI University Study Assistant and Exam Tutor.\n"
+            "Your role is to help students solve complex exam questions, clarify difficult concepts, "
+            "and provide complete, step-by-step academic solutions.\n\n"
+            "GUIDELINES:\n"
+            "1. Provide a comprehensive, rigorous, and step-by-step solution.\n"
+            "2. If it is a mathematical, algorithmic, or theoretical problem, show all working and derivations.\n"
+            "3. Format cleanly using bold headings, numbered steps, or bullet points.\n"
+            "4. Be encouraging, clear, and academic."
+        ),
+        ("human", "{question}"),
+    ])
+    messages = prompt.format_messages(question=question)
+    response = llm.invoke(messages)
+    return extract_text_from_llm_response(response.content)
+
+
 class UniRAGPipeline:
     """
     End-to-end RAG Pipeline using LangChain.
     Coordinates between:
     1. Chroma Retriever (finding relevant chunks)
     2. Prompt Template (structuring the university assistant instructions)
-    3. Google Gemini LLM (generating answers grounded in context)
+    3. Google Gemini LLM (generating answers grounded in context and solving questions)
     """
 
     def __init__(self, vector_store: Chroma, k: int = 4):
@@ -78,16 +103,18 @@ class UniRAGPipeline:
         self.prompt_template = ChatPromptTemplate.from_messages([
             (
                 "system",
-                "You are UniRAG, an intelligent AI University Study Assistant.\n"
-                "Your role is to help university students understand their course material accurately.\n\n"
-                "GUIDELINES:\n"
-                "1. Answer the question strictly using the provided context from the student's study material.\n"
-                "2. If the context does not contain enough information to answer the question, clearly state: "
-                "'I could not find the answer to this question in the uploaded study materials.' "
-                "Do NOT hallucinate or extrapolate beyond the provided text.\n"
-                "3. Use a clear, well-structured format (bullet points, numbered lists, or bold highlights) to explain academic concepts.\n"
-                "4. Be concise, polite, and encouraging.\n\n"
-                "CONTEXT FROM STUDY MATERIALS:\n"
+                "You are UniRAG, an expert AI University Study Assistant and Problem Solver.\n"
+                "Your role is to help students understand their course materials and solve exam questions.\n\n"
+                "INSTRUCTIONS:\n"
+                "1. ALIGN WITH COURSE NOTES: If the provided context covers the question, base your explanation "
+                "primarily on the student's uploaded material and syllabus conventions.\n"
+                "2. ALWAYS SOLVE AND EXPLAIN: If the question asks to solve a problem (e.g. from an uploaded question paper, "
+                "past exam, numerical, or conceptual query) and the complete solution is NOT written out in the notes, "
+                "DO NOT refuse to answer! Provide the FULL, step-by-step solution, derivation, code, or explanation using "
+                "rigorous academic principles.\n"
+                "3. ACADEMIC STRUCTURE: Structure your answer logically with bold headings, numbered steps, or bullet points.\n"
+                "4. Be thorough, accurate, and encouraging.\n\n"
+                "CONTEXT FROM UPLOADED STUDY MATERIALS:\n"
                 "{context}"
             ),
             ("human", "{question}"),
@@ -104,14 +131,15 @@ class UniRAGPipeline:
         # 1. Retrieve relevant chunks using the retriever
         retrieved_docs = self.retriever.invoke(question)
 
+        # 2. Format chunks into context (if empty, solve directly)
         if not retrieved_docs:
+            direct_ans = solve_direct_question(question)
             return {
-                "answer": "No relevant study material found in the database. Please make sure a PDF is uploaded and processed.",
+                "answer": direct_ans,
                 "sources": [],
                 "raw_docs": [],
             }
 
-        # 2. Format chunks into context
         context_str = format_context_docs(retrieved_docs)
 
         # 3. Create the prompt messages and invoke the LLM

@@ -6,7 +6,7 @@ import streamlit as st
 from src.config import DATA_DIR, VECTOR_DB_DIR, GOOGLE_API_KEY
 from src.document_loader import load_and_split_document
 from src.vector_store import create_vector_store, load_vector_store
-from src.rag_pipeline import UniRAGPipeline
+from src.rag_pipeline import UniRAGPipeline, solve_direct_question
 
 # Configure Streamlit page
 st.set_page_config(
@@ -58,13 +58,6 @@ with st.sidebar:
     st.caption("AI-Powered Study Assistant using LangChain & RAG")
 
     st.markdown("---")
-
-    # API Key Status indicator
-    if GOOGLE_API_KEY:
-        st.success("✅ Google Gemini API Key Active")
-    else:
-        st.error("❌ GOOGLE_API_KEY is missing. Please add it to Streamlit Secrets.")
-
     st.markdown("### 1. Upload Study Materials")
     uploaded_files = st.file_uploader(
         "Upload Course PDFs or Question Paper Photos:",
@@ -77,7 +70,7 @@ with st.sidebar:
 
     if process_button:
         if not GOOGLE_API_KEY:
-            st.error("Please add your GOOGLE_API_KEY in Streamlit Secrets or .env.")
+            st.error("Please configure your GOOGLE_API_KEY in Streamlit Secrets or .env.")
         elif not uploaded_files:
             st.warning("Please upload at least one PDF or photo.")
         else:
@@ -119,7 +112,7 @@ with st.sidebar:
             + "\n".join([f"- 📄 `{f}`" for f in st.session_state.indexed_files])
         )
     else:
-        st.write("No documents indexed yet.")
+        st.write("No documents indexed yet. You can still ask questions below!")
 
     st.markdown("---")
     if st.button("🗑️ Reset All Notes & Chat", use_container_width=True):
@@ -130,18 +123,9 @@ with st.sidebar:
 # --- MAIN PANEL: Chat Interface ---
 st.header("UniRAG – AI University Study Assistant")
 st.markdown(
-    "Ask conceptual questions, request summaries, or clarify difficult topics from your uploaded course materials. "
-    "Every answer is grounded strictly in your notes with page citations."
+    "Ask conceptual questions, request full question-paper solutions, or clarify complex topics. "
+    "Answers align with your notes and provide step-by-step problem solving."
 )
-
-# If no notes uploaded yet, show quick-start guide
-if st.session_state.rag_pipeline is None:
-    st.info(
-        "👈 **Get Started:**\n"
-        "1. Upload your course PDFs or photos of question papers using the sidebar.\n"
-        "2. Click **'Process & Index Documents'**.\n"
-        "3. Ask your questions here in the chat!"
-    )
 
 # Render Chat History
 for message in st.session_state.messages:
@@ -158,7 +142,7 @@ for message in st.session_state.messages:
                     )
 
 # Chat Input
-user_question = st.chat_input("Ask a question about your study material...")
+user_question = st.chat_input("Ask or paste any question (e.g. solve Question 2 from the paper)...")
 
 if user_question:
     # Append and display user message
@@ -168,28 +152,40 @@ if user_question:
 
     # Generate assistant answer
     with st.chat_message("assistant"):
-        if st.session_state.rag_pipeline is None:
-            warning_msg = "Please upload and process your study material using the sidebar first."
-            st.warning(warning_msg)
-            st.session_state.messages.append({"role": "assistant", "content": warning_msg})
+        if st.session_state.rag_pipeline is not None:
+            with st.spinner("Searching study material and generating solution..."):
+                try:
+                    response = st.session_state.rag_pipeline.query(user_question)
+                    answer = response["answer"]
+                    sources = response.get("sources", [])
+
+                    st.markdown(answer)
+
+                    if sources:
+                        with st.expander("📚 Referenced Sources & Citations"):
+                            for idx, src in enumerate(sources, 1):
+                                st.markdown(
+                                    f"**{idx}. {src['file_name']}** — *Page {src['page']}*\n\n"
+                                    f"> {src['preview']}"
+                                )
+
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer,
+                        "sources": sources,
+                    })
+                except Exception as err:
+                    st.error(f"Error answering question: {err}")
         else:
-            with st.spinner("Searching study material and generating answer..."):
-                response = st.session_state.rag_pipeline.query(user_question)
-                answer = response["answer"]
-                sources = response.get("sources", [])
-
-                st.markdown(answer)
-
-                if sources:
-                    with st.expander("📚 Referenced Sources & Citations"):
-                        for idx, src in enumerate(sources, 1):
-                            st.markdown(
-                                f"**{idx}. {src['file_name']}** — *Page {src['page']}*\n\n"
-                                f"> {src['preview']}"
-                            )
-
-                st.session_state.messages.append({
-                    "role": "assistant",
-                    "content": answer,
-                    "sources": sources,
-                })
+            # No documents uploaded yet: solve question directly using university AI tutor
+            with st.spinner("Solving question step-by-step..."):
+                try:
+                    answer = solve_direct_question(user_question)
+                    st.markdown(answer)
+                    st.session_state.messages.append({
+                        "role": "assistant",
+                        "content": answer,
+                        "sources": [],
+                    })
+                except Exception as err:
+                    st.error(f"Error solving question: {err}")
