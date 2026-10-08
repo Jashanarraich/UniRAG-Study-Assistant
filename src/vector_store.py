@@ -25,6 +25,7 @@ def get_embeddings_model() -> GoogleGenerativeAIEmbeddings:
     return GoogleGenerativeAIEmbeddings(
         model=EMBEDDING_MODEL_NAME,
         google_api_key=GOOGLE_API_KEY,
+        vertexai=False,
     )
 
 

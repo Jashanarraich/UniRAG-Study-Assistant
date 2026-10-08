@@ -1,4 +1,5 @@
 import os
+import tempfile
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -7,6 +8,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Load environment variables from .env file
 load_dotenv(dotenv_path=BASE_DIR / ".env")
+
+# Crucial for Streamlit Cloud (runs on GCP GKE):
+# Prevent google-auth from detecting container GCE metadata server and injecting unauthorized OAuth tokens
+os.environ["NO_GCE_CHECK"] = "True"
+os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "false"
+os.environ.pop("GOOGLE_APPLICATION_CREDENTIALS", None)
+os.environ.pop("GOOGLE_CLOUD_PROJECT", None)
+os.environ.pop("GCLOUD_PROJECT", None)
 
 # API Key: Read from local .env or Streamlit Cloud Secrets
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY", "")
@@ -18,13 +27,18 @@ if not GOOGLE_API_KEY:
     except Exception:
         pass
 
-# Ensure os.environ also has it set for any underlying Google SDKs
+# Ensure os.environ has the cleaned key
 if GOOGLE_API_KEY:
     os.environ["GOOGLE_API_KEY"] = GOOGLE_API_KEY
 
-# Directory Paths
-DATA_DIR = BASE_DIR / "data" / "docs"
-VECTOR_DB_DIR = BASE_DIR / "vector_db"
+# Directory Paths: On Windows use project folder; on Streamlit Cloud Linux use writable /tmp
+if os.name == "nt":
+    DATA_DIR = BASE_DIR / "data" / "docs"
+    VECTOR_DB_DIR = BASE_DIR / "vector_db"
+else:
+    temp_dir = Path(tempfile.gettempdir())
+    DATA_DIR = temp_dir / "unirag_docs"
+    VECTOR_DB_DIR = temp_dir / "unirag_vector_db"
 
 # RAG & Chunking Parameters
 CHUNK_SIZE = 1000

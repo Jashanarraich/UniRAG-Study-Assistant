@@ -15,7 +15,7 @@ def get_genai_client() -> genai.Client:
     """Initializes Google GenAI Client for vision and OCR tasks."""
     if not GOOGLE_API_KEY:
         raise ValueError("GOOGLE_API_KEY is not set. Please provide it in Streamlit Secrets or .env.")
-    return genai.Client(api_key=GOOGLE_API_KEY)
+    return genai.Client(api_key=GOOGLE_API_KEY, vertexai=False)
 
 
 def extract_text_from_image(image_input: Union[Image.Image, bytes, Path]) -> str:

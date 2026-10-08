@@ -21,6 +21,7 @@ def get_llm(model_name: str = LLM_MODEL_NAME, temperature: float = 0.2) -> ChatG
         model=model_name,
         google_api_key=GOOGLE_API_KEY,
         temperature=temperature,
+        vertexai=False,
     )
 
 
