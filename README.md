@@ -104,7 +104,7 @@ Streamlit will automatically open `http://localhost:8501` in your browser.
 
 ---
 
-## 🎓 College Viva / Teacher Evaluation Guide
+## 🎓 FAQ
 
 **Q1: What is Retrieval-Augmented Generation (RAG)?**
 > **Answer:** RAG combines information retrieval with text generation. Instead of asking an LLM to rely only on its pre-trained memory, we retrieve relevant text chunks from custom documents (like our course PDF) and inject them into the LLM's prompt as context.
